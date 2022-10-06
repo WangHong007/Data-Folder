@@ -16,8 +16,8 @@ def cli():
 def mzml_dataframe(ctx, mzml_folder):
 
     file_columns = ['File_Name', 'SpectrumID', 'MSLevel', 'Charge', 'MS2_peaks', 'Base_Peak_Intensity']
-    mzml_df = pd.DataFrame(columns = file_columns)
-    mzml_paths = list(i for i in os.listdir(mzml_folder))
+    mzml_paths = list(i for i in os.listdir(mzml_folder) if i.endswith(".mzML"))
+    mzml_count = 1
     
     def parse_mzml(file_name, file_columns):
         info = []
@@ -26,11 +26,18 @@ def mzml_dataframe(ctx, mzml_folder):
         for i in exp:
             name = os.path.split(file_name)[1]
             id = i.getNativeID()
-            if i.getMSLevel() == 2:
+            MSLevel = i.getMSLevel()
+            if MSLevel == 2:
                 charge_state = i.getPrecursors()[0].getCharge()
-                info_list = [name, id, 2, charge_state, len(i.get_peaks()[0]), i.getMetaValue("base peak intensity")]
+                peaks_tuple = i.get_peaks()
+                peak_per_ms2 = len(peaks_tuple[0])
+                if i.getMetaValue("base peak intensity"):
+                    base_peak_intensity = i.getMetaValue("base peak intensity")
+                else:
+                    base_peak_intensity = max(peaks_tuple[1]) if len(peaks_tuple[1]) > 0 else "null"
+                info_list = [name, id, 2, charge_state, peak_per_ms2, base_peak_intensity]
             else:
-                info_list = [name, id, i.getMSLevel(), 'null', 'null', 'null']
+                info_list = [name, id, MSLevel, 'null', 'null', 'null']
 
             info.append(info_list)
 
@@ -38,9 +45,10 @@ def mzml_dataframe(ctx, mzml_folder):
     
     
     for i in mzml_paths:
-        mzml_df = pd.concat([mzml_df, parse_mzml(mzml_folder + i, file_columns)])
-    
-    mzml_df.to_csv('mzml_info.csv', sep=',', index = False, header = True)
+        mzml_df = parse_mzml(mzml_folder + i, file_columns)
+        tsv_header = True if mzml_count == 1 else False
+        mzml_df.to_csv('mzml_info.tsv', mode = 'a', sep = '\t', index = False, header = tsv_header)
+        mzml_count += 1
 
 
 
